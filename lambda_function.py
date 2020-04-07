@@ -27,6 +27,19 @@ CREATE TABLE pothole (
 
      PRIMARY KEY (uuid)
 )
+
+CREATE TABLE training_data (
+     uuid VARCHAR(40) NOT NULL,
+     timestamp TIMESTAMP,
+     longitude FLOAT,
+     latitude FLOAT,
+     device_id VARCHAR(40),
+     image_filepath VARCHAR(256),
+     is_new BOOLEAN DEFAULT true,
+     potholes_json VARCHAR(5120),
+
+     PRIMARY KEY (uuid)
+)
 '''
 
 def mysql_save_insert(data):
@@ -34,28 +47,48 @@ def mysql_save_insert(data):
                                  user=mysql_config['user'],
                                  password=mysql_config['password'],
                                  db=mysql_config['db'])
+    uuid = None if 'uuid' not in data else data['uuid']
+    longitude = None if 'longitude' not in data else float(data['longitude'])
+    latitude = None if 'latitude' not in data else float(data['latitude'])
+    device_id = None if 'device_id' not in data else data['device_id']
+    image_filepath = None if 'image_filepath' not in data else data['image_filepath']
+    for_training = None if 'for_training' not in data else bool(data['for_training'])
+    potholes = None if 'potholes' not in data else data['potholes']
+
     result_message = ''
-    for item in data:
+    i = 0
+    for item in potholes:
         try:
             with connection.cursor() as cursor:
-                uuid = None if 'uuid' not in item else item['uuid']
                 boundingbox_x = None if 'boundingbox_x' not in item else int(item['boundingbox_x'])
                 boundingbox_y = None if 'boundingbox_y' not in item else int(item['boundingbox_y'])
                 boundingbox_width = None if 'boundingbox_width' not in item else int(item['boundingbox_width'])
                 boundingbox_height = None if 'boundingbox_height' not in item else int(item['boundingbox_height'])
                 confidence = None if 'confidence' not in item else float(item['confidence'])
-                longitude = None if 'longitude' not in item else float(item['longitude'])
-                latitude = None if 'latitude' not in item else float(item['latitude'])
-                device_id = None if 'device_id' not in item else item['device_id']
-                image_filepath = None if 'image_filepath' not in item else item['image_filepath']
 
                 sql = "INSERT INTO pothole (uuid, boundingbox_x, boundingbox_y, boundingbox_width, boundingbox_height, confidence, timestamp, longitude, latitude, device_id, image_filepath) VALUES (%s, %s, %s, %s, %s, %s, now(), %s, %s, %s, %s)"
 
                 val = (
-                uuid, boundingbox_x, boundingbox_y, boundingbox_width, boundingbox_height, confidence, longitude, latitude,
+                uuid + str(i), boundingbox_x, boundingbox_y, boundingbox_width, boundingbox_height, confidence, longitude, latitude,
                 device_id, image_filepath)
 
-                print(val)
+                cursor.execute(sql, val)
+                connection.commit()
+
+                i += 1
+                result_message += "Success to insert value: %s\n\r" % (str(val))
+        except Exception as e:
+            result_message += "Failed to insert, error: %s\n\r" % (e)
+
+    # insert training data if for_training
+    if for_training:
+        try:
+            with connection.cursor() as cursor:
+                sql = "INSERT INTO training_data (uuid, timestamp, longitude, latitude, device_id, image_filepath, potholes_json) VALUES (%s, now(), %s, %s, %s, %s, %s)"
+
+                if image_filepath is None:
+                    image_filepath = uuid + ".jpg"
+                val = (uuid, longitude, latitude, device_id, image_filepath, json.dumps(potholes))
 
                 cursor.execute(sql, val)
                 connection.commit()
@@ -74,7 +107,7 @@ def payload_handler(data):
 
     return {'message': message}
 
-data = json.loads("[{\"uuid\":\"f2c1e7fe-e9e1-4adf-bdcc-a1d957253fc2-0\",\"boundingbox_x\":250,\"boundingbox_y\":214,\"boundingbox_width\":26,\"boundingbox_height\":9,\"confidence\":0.17546588},{\"uuid\":\"f2c1e7fe-e9e1-4adf-bdcc-a1d957253fc2-1\",\"boundingbox_x\":289,\"boundingbox_y\":239,\"boundingbox_width\":32,\"boundingbox_height\":10,\"confidence\":0.10995752}]")
+data = json.loads('{"uuid":"af9a9f43-0e0b-4b4d-98ea-432b716b5c7d","potholes":[{"boundingbox_x":265,"boundingbox_y":167,"boundingbox_width":14,"boundingbox_height":6,"confidence":0.22750388}],"latitude":53.4200367,"longitude":-113.5198149,"device_id":"67fe6831e58a4310","for_training":true}')
 payload_handler(data)
 
 def respond(err, res=None):
