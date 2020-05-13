@@ -12,7 +12,7 @@ mysql_config = {
 }
 
 '''
-CREATE TABLE pothole (
+CREATE TABLE object (
      uuid VARCHAR(40) NOT NULL,
      boundingbox_x INT,
      boundingbox_y INT,
@@ -36,7 +36,7 @@ CREATE TABLE training_data (
      device_id VARCHAR(40),
      image_filepath VARCHAR(256),
      is_new BOOLEAN DEFAULT true,
-     potholes_json VARCHAR(5120),
+     objects VARCHAR(5120),
 
      PRIMARY KEY (uuid)
 )
@@ -53,11 +53,11 @@ def mysql_save_insert(data):
     device_id = None if 'device_id' not in data else data['device_id']
     image_filepath = None if 'image_filepath' not in data else data['image_filepath']
     for_training = None if 'for_training' not in data else bool(data['for_training'])
-    potholes = None if 'potholes' not in data else data['potholes']
+    objects = None if 'objects' not in data else data['objects']
 
     result_message = ''
     i = 0
-    for item in potholes:
+    for item in objects:
         try:
             with connection.cursor() as cursor:
                 boundingbox_x = None if 'boundingbox_x' not in item else int(item['boundingbox_x'])
@@ -66,7 +66,7 @@ def mysql_save_insert(data):
                 boundingbox_height = None if 'boundingbox_height' not in item else int(item['boundingbox_height'])
                 confidence = None if 'confidence' not in item else float(item['confidence'])
 
-                sql = "INSERT INTO pothole (uuid, boundingbox_x, boundingbox_y, boundingbox_width, boundingbox_height, confidence, timestamp, longitude, latitude, device_id, image_filepath) VALUES (%s, %s, %s, %s, %s, %s, now(), %s, %s, %s, %s)"
+                sql = "INSERT INTO object (uuid, boundingbox_x, boundingbox_y, boundingbox_width, boundingbox_height, confidence, timestamp, longitude, latitude, device_id, image_filepath) VALUES (%s, %s, %s, %s, %s, %s, now(), %s, %s, %s, %s)"
 
                 val = (
                 uuid + str(i), boundingbox_x, boundingbox_y, boundingbox_width, boundingbox_height, confidence, longitude, latitude,
@@ -84,11 +84,11 @@ def mysql_save_insert(data):
     if for_training:
         try:
             with connection.cursor() as cursor:
-                sql = "INSERT INTO training_data (uuid, timestamp, longitude, latitude, device_id, image_filepath, potholes_json) VALUES (%s, now(), %s, %s, %s, %s, %s)"
+                sql = "INSERT INTO training_data (uuid, timestamp, longitude, latitude, device_id, image_filepath, objects) VALUES (%s, now(), %s, %s, %s, %s, %s)"
 
                 if image_filepath is None:
                     image_filepath = uuid + ".jpg"
-                val = (uuid, longitude, latitude, device_id, image_filepath, json.dumps(potholes))
+                val = (uuid, longitude, latitude, device_id, image_filepath, json.dumps(objects))
 
                 cursor.execute(sql, val)
                 connection.commit()
@@ -107,8 +107,9 @@ def payload_handler(data):
 
     return {'message': message}
 
-data = json.loads('{"uuid":"af9a9f43-0e0b-4b4d-98ea-432b716b5c7d","potholes":[{"boundingbox_x":265,"boundingbox_y":167,"boundingbox_width":14,"boundingbox_height":6,"confidence":0.22750388}],"latitude":53.4200367,"longitude":-113.5198149,"device_id":"67fe6831e58a4310","for_training":true}')
-payload_handler(data)
+### FOR DEBUG
+#data = json.loads('{"uuid":"af9a9f43-0e0b-4b4d-98ea-432b716b5c7d","objects":[{"boundingbox_x":265,"boundingbox_y":167,"boundingbox_width":14,"boundingbox_height":6,"confidence":0.22750388}],"latitude":53.4200367,"longitude":-113.5198149,"device_id":"67fe6831e58a4310","for_training":true}')
+#payload_handler(data)
 
 def respond(err, res=None):
     return {
